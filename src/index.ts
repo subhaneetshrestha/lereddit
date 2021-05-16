@@ -7,6 +7,11 @@ import { HelloResolvers } from './resolvers/hello';
 import { PostResolvers } from './resolvers/post';
 import 'reflect-metadata';
 import { UserResolvers } from './resolvers/user';
+import redis from 'redis';
+import session from 'express-session';
+import connectRedis from 'connect-redis';
+import { __prop__ } from './constants';
+import { MyContext } from './types';
 
 const main = async () => {
   const orm = await MikroORM.init(microConfig);
@@ -15,13 +20,35 @@ const main = async () => {
 
   const app = express();
 
+  // redis should be above apollo since we will be using it
+  // in apollo and in express the middlewares are executed in the order
+
+  const RedisStore = connectRedis(session);
+  const redisClient = redis.createClient();
+
+  app.use(
+    session({
+      name: 'qid',
+      store: new RedisStore({ client: redisClient, disableTouch: true }), // disable touch to remove TTL
+      cookie: {
+        maxAge: 1000 * 60 * 60 * 24 * 365 * 10, // 10 years
+        httpOnly: true,
+        secure: __prop__, // cookie only works in https
+        sameSite: 'lax', // csrf NEED TO DO RESEARCH
+      },
+      saveUninitialized: false,
+      secret: 'sdqeocxjoiqweopasd',
+      resave: false,
+    })
+  );
+
   const apolloServer = new ApolloServer({
     schema: await buildSchema({
       resolvers: [HelloResolvers, PostResolvers, UserResolvers],
       validate: false,
     }),
     // context = is a object that is accessible by all resolvers
-    context: () => ({ em: orm.em }),
+    context: ({ req, res }): MyContext => ({ em: orm.em, req, res }),
   });
 
   apolloServer.applyMiddleware({ app });
@@ -29,7 +56,7 @@ const main = async () => {
   app.listen(8080, () => {
     console.log('server running on localhost: 4000');
   });
-};;
+};
 
 main().catch((err) => {
   console.error(err);

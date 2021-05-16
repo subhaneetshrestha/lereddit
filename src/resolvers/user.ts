@@ -7,8 +7,8 @@ import {
   InputType,
   Mutation,
   ObjectType,
-  Query,
   Resolver,
+  Query,
 } from 'type-graphql';
 import argon2 from 'argon2';
 
@@ -45,10 +45,23 @@ class UserResponse {
 
 @Resolver()
 export class UserResolvers {
+  @Query(() => User, { nullable: true })
+  async me( @Ctx() { em, req }: MyContext ) {
+    
+    // not logged in
+    if (!req.session.userId) {
+      return null;
+    }
+
+    const user = await em.findOne( User, { _id: req.session.userId } );
+
+    return user;
+  }
+
   @Mutation(() => UserResponse)
   async register(
     @Arg('options') options: UserdataInput,
-    @Ctx() { em }: MyContext
+    @Ctx() { em, req }: MyContext
   ): Promise<UserResponse> {
     if (options.username.length <= 3) {
       return {
@@ -95,6 +108,11 @@ export class UserResolvers {
       }
       console.log(error.message, 'err');
     }
+
+    // store user _id session
+    // this will set a cookie on the user and keep them locked in
+    req.session.userId = user._id;
+
     return {
       user,
     };
@@ -104,14 +122,13 @@ export class UserResolvers {
   async login(
     @Arg('username') username: string,
     @Arg('password') password: string,
-    @Ctx() { em }: MyContext
+    @Ctx() { em, req }: MyContext
   ): Promise<UserResponse> {
     const user = await em.findOne(User, {
       username: username.toLowerCase(),
     });
 
     if (!user) {
-      console.log('here');
       return {
         errors: [
           {
@@ -134,6 +151,9 @@ export class UserResolvers {
         ],
       };
     }
+
+    req.session.userId = user._id;
+
     return {
       user,
     };
