@@ -11,6 +11,8 @@ import {
   Query,
 } from 'type-graphql';
 import argon2 from 'argon2';
+import { EntityManager } from '@mikro-orm/postgresql';
+import { COOKIE_NAME } from '../constants';
 
 @InputType()
 class UserdataInput {
@@ -46,14 +48,13 @@ class UserResponse {
 @Resolver()
 export class UserResolvers {
   @Query(() => User, { nullable: true })
-  async me( @Ctx() { em, req }: MyContext ) {
-    
+  async me(@Ctx() { em, req }: MyContext) {
     // not logged in
     if (!req.session.userId) {
       return null;
     }
 
-    const user = await em.findOne( User, { _id: req.session.userId } );
+    const user = await em.findOne(User, { _id: req.session.userId });
 
     return user;
   }
@@ -86,14 +87,31 @@ export class UserResolvers {
     }
     // hashing password
     const hashedPassword = await argon2.hash(options.password);
-    const user = em.create(User, {
-      username: options.username.toLowerCase(),
-      password: hashedPassword,
-      email: options.email,
-      phone: options.phone,
-    });
+    // const user = em.create(User, {
+    //   username: options.username.toLowerCase(),
+    //   password: hashedPassword,
+    //   email: options.email,
+    //   phone: options.phone,
+    // });  UNCOMMENT WHEN USING MIKROORM persistAndFlush();
+
+    let user;
     try {
-      await em.persistAndFlush(user);
+      // using query builder
+      const result = await (em as EntityManager)
+        .createQueryBuilder(User)
+        .getKnexQuery()
+        .insert({
+          username: options.username.toLowerCase(),
+          password: hashedPassword,
+          email: options.email,
+          phone: options.phone,
+          created_at: new Date(),
+          updated_at: new Date(),
+        })
+        .returning('*');
+
+      user = result[0];
+      // await em.persistAndFlush(user); // causes issues
     } catch (error) {
       if (error.code === '23505' || error.detail.includes('already exists')) {
         // duplicate username error'
@@ -114,7 +132,11 @@ export class UserResolvers {
     req.session.userId = user._id;
 
     return {
-      user,
+      user: {
+        ...user,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at,
+      },
     };
   }
 
@@ -157,5 +179,21 @@ export class UserResolvers {
     return {
       user,
     };
+  }
+
+  @Mutation(() => Boolean)
+  logout( @Ctx() { req, res }: MyContext ) {
+    return new Promise((resolve) =>
+      req.session.destroy( ( err ) => {
+        res.clearCookie(COOKIE_NAME);
+        if (err) {
+          console.log(err);
+          resolve(false);
+          return;
+        } else {
+          resolve(true);
+        }
+      })
+    );
   }
 }

@@ -10,8 +10,9 @@ import { UserResolvers } from './resolvers/user';
 import redis from 'redis';
 import session from 'express-session';
 import connectRedis from 'connect-redis';
-import { __prop__ } from './constants';
+import { COOKIE_NAME, __prop__ } from './constants';
 import { MyContext } from './types';
+import cors from 'cors';
 
 const main = async () => {
   const orm = await MikroORM.init(microConfig);
@@ -27,8 +28,15 @@ const main = async () => {
   const redisClient = redis.createClient();
 
   app.use(
+    cors({
+      origin: 'http://localhost:3000',
+      credentials: true,
+    })
+  );  
+
+  app.use(
     session({
-      name: 'qid',
+      name: COOKIE_NAME,
       store: new RedisStore({ client: redisClient, disableTouch: true }), // disable touch to remove TTL
       cookie: {
         maxAge: 1000 * 60 * 60 * 24 * 365 * 10, // 10 years
@@ -51,7 +59,7 @@ const main = async () => {
     context: ({ req, res }): MyContext => ({ em: orm.em, req, res }),
   });
 
-  apolloServer.applyMiddleware({ app });
+  apolloServer.applyMiddleware({ app, cors: false });
 
   app.listen(8080, () => {
     console.log('server running on localhost: 4000');

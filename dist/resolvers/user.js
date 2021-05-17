@@ -28,6 +28,7 @@ exports.UserResolvers = void 0;
 const User_1 = require("../entities/User");
 const type_graphql_1 = require("type-graphql");
 const argon2_1 = __importDefault(require("argon2"));
+const constants_1 = require("../constants");
 let UserdataInput = class UserdataInput {
 };
 __decorate([
@@ -108,14 +109,21 @@ let UserResolvers = class UserResolvers {
                 };
             }
             const hashedPassword = yield argon2_1.default.hash(options.password);
-            const user = em.create(User_1.User, {
-                username: options.username.toLowerCase(),
-                password: hashedPassword,
-                email: options.email,
-                phone: options.phone,
-            });
+            let user;
             try {
-                yield em.persistAndFlush(user);
+                const result = yield em
+                    .createQueryBuilder(User_1.User)
+                    .getKnexQuery()
+                    .insert({
+                    username: options.username.toLowerCase(),
+                    password: hashedPassword,
+                    email: options.email,
+                    phone: options.phone,
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                })
+                    .returning('*');
+                user = result[0];
             }
             catch (error) {
                 if (error.code === '23505' || error.detail.includes('already exists')) {
@@ -132,7 +140,7 @@ let UserResolvers = class UserResolvers {
             }
             req.session.userId = user._id;
             return {
-                user,
+                user: Object.assign(Object.assign({}, user), { createdAt: user.created_at, updatedAt: user.updated_at }),
             };
         });
     }
@@ -168,6 +176,19 @@ let UserResolvers = class UserResolvers {
             };
         });
     }
+    logout({ req, res }) {
+        return new Promise((resolve) => req.session.destroy((err) => {
+            res.clearCookie(constants_1.COOKIE_NAME);
+            if (err) {
+                console.log(err);
+                resolve(false);
+                return;
+            }
+            else {
+                resolve(true);
+            }
+        }));
+    }
 };
 __decorate([
     type_graphql_1.Query(() => User_1.User, { nullable: true }),
@@ -193,6 +214,13 @@ __decorate([
     __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", Promise)
 ], UserResolvers.prototype, "login", null);
+__decorate([
+    type_graphql_1.Mutation(() => Boolean),
+    __param(0, type_graphql_1.Ctx()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserResolvers.prototype, "logout", null);
 UserResolvers = __decorate([
     type_graphql_1.Resolver()
 ], UserResolvers);
