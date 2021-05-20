@@ -21,6 +21,7 @@
     "@types/express-session": "^1.17.3",
     "@types/node": "^15.3.0",
     "@types/redis": "^2.8.28",
+    "@types/nodemailer": "^6.4.1",
     "nodemon": "^2.0.7",
     "ts-node": "^9.1.1",
     "typescript": "^4.2.4"
@@ -37,6 +38,7 @@
     "express": "^4.17.1",
     "express-session": "^1.17.1",
     "graphql": "^15.5.0",
+    "nodemailer": "^6.6.0",
     "pg": "^8.6.0",
     "redis": "^3.1.2",
     "type-graphql": "^1.1.1"

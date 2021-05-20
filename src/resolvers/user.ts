@@ -4,7 +4,6 @@ import {
   Arg,
   Ctx,
   Field,
-  InputType,
   Mutation,
   ObjectType,
   Resolver,
@@ -13,18 +12,8 @@ import {
 import argon2 from 'argon2';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { COOKIE_NAME } from '../constants';
-
-@InputType()
-class UserdataInput {
-  @Field()
-  username: string;
-  @Field()
-  phone?: string;
-  @Field()
-  email?: string;
-  @Field()
-  password: string;
-}
+import { UserdataInput } from '../utils/UserdataInput';
+import { validateRegister } from 'src/utils/validateRegister';
 
 @ObjectType()
 class FieldError {
@@ -47,6 +36,12 @@ class UserResponse {
 
 @Resolver()
 export class UserResolvers {
+  @Mutation(() => Boolean)
+  async forgotPassword(@Arg('email') email: string, @Ctx() { em }: MyContext) {
+    const user = await em.findOne(User, { email });
+    console.log(user);
+  }
+
   @Query(() => User, { nullable: true })
   async me(@Ctx() { em, req }: MyContext) {
     // not logged in
@@ -64,27 +59,9 @@ export class UserResolvers {
     @Arg('options') options: UserdataInput,
     @Ctx() { em, req }: MyContext
   ): Promise<UserResponse> {
-    if (options.username.length <= 3) {
-      return {
-        errors: [
-          {
-            field: 'username',
-            message: 'Length must be greater than 3',
-          },
-        ],
-      };
-    }
+    const errors = validateRegister(options);
+    if (errors) return { errors };
 
-    if (options.password.length <= 8) {
-      return {
-        errors: [
-          {
-            field: 'password',
-            message: 'Length must be greater than 8',
-          },
-        ],
-      };
-    }
     // hashing password
     const hashedPassword = await argon2.hash(options.password);
     // const user = em.create(User, {
@@ -142,13 +119,16 @@ export class UserResolvers {
 
   @Mutation(() => UserResponse)
   async login(
-    @Arg('username') username: string,
+    @Arg('uniqueCred') uniqueCred: string,
     @Arg('password') password: string,
     @Ctx() { em, req }: MyContext
   ): Promise<UserResponse> {
-    const user = await em.findOne(User, {
-      username: username.toLowerCase(),
-    });
+    const user = await em.findOne(
+      User,
+      uniqueCred.includes('@')
+        ? { email: uniqueCred }
+        : { username: uniqueCred }
+    );
 
     if (!user) {
       return {
@@ -182,9 +162,9 @@ export class UserResolvers {
   }
 
   @Mutation(() => Boolean)
-  logout( @Ctx() { req, res }: MyContext ) {
+  logout(@Ctx() { req, res }: MyContext) {
     return new Promise((resolve) =>
-      req.session.destroy( ( err ) => {
+      req.session.destroy((err) => {
         res.clearCookie(COOKIE_NAME);
         if (err) {
           console.log(err);
