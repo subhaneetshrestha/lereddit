@@ -29,27 +29,8 @@ const User_1 = require("../entities/User");
 const type_graphql_1 = require("type-graphql");
 const argon2_1 = __importDefault(require("argon2"));
 const constants_1 = require("../constants");
-let UserdataInput = class UserdataInput {
-};
-__decorate([
-    type_graphql_1.Field(),
-    __metadata("design:type", String)
-], UserdataInput.prototype, "username", void 0);
-__decorate([
-    type_graphql_1.Field(),
-    __metadata("design:type", String)
-], UserdataInput.prototype, "phone", void 0);
-__decorate([
-    type_graphql_1.Field(),
-    __metadata("design:type", String)
-], UserdataInput.prototype, "email", void 0);
-__decorate([
-    type_graphql_1.Field(),
-    __metadata("design:type", String)
-], UserdataInput.prototype, "password", void 0);
-UserdataInput = __decorate([
-    type_graphql_1.InputType()
-], UserdataInput);
+const UserdataInput_1 = require("../utils/UserdataInput");
+const validateRegister_1 = require("../utils/validateRegister");
 let FieldError = class FieldError {
 };
 __decorate([
@@ -77,6 +58,12 @@ UserResponse = __decorate([
     type_graphql_1.ObjectType()
 ], UserResponse);
 let UserResolvers = class UserResolvers {
+    forgotPassword(email, { em }) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const user = yield em.findOne(User_1.User, { email });
+            console.log(user);
+        });
+    }
     me({ em, req }) {
         return __awaiter(this, void 0, void 0, function* () {
             if (!req.session.userId) {
@@ -88,26 +75,9 @@ let UserResolvers = class UserResolvers {
     }
     register(options, { em, req }) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (options.username.length <= 3) {
-                return {
-                    errors: [
-                        {
-                            field: 'username',
-                            message: 'Length must be greater than 3',
-                        },
-                    ],
-                };
-            }
-            if (options.password.length <= 8) {
-                return {
-                    errors: [
-                        {
-                            field: 'password',
-                            message: 'Length must be greater than 8',
-                        },
-                    ],
-                };
-            }
+            const errors = validateRegister_1.validateRegister(options);
+            if (errors)
+                return { errors };
             const hashedPassword = yield argon2_1.default.hash(options.password);
             let user;
             try {
@@ -144,11 +114,11 @@ let UserResolvers = class UserResolvers {
             };
         });
     }
-    login(username, password, { em, req }) {
+    login(uniqueCred, password, { em, req }) {
         return __awaiter(this, void 0, void 0, function* () {
-            const user = yield em.findOne(User_1.User, {
-                username: username.toLowerCase(),
-            });
+            const user = yield em.findOne(User_1.User, uniqueCred.includes('@')
+                ? { email: uniqueCred }
+                : { username: uniqueCred });
             if (!user) {
                 return {
                     errors: [
@@ -191,6 +161,13 @@ let UserResolvers = class UserResolvers {
     }
 };
 __decorate([
+    type_graphql_1.Mutation(() => Boolean),
+    __param(0, type_graphql_1.Arg('email')), __param(1, type_graphql_1.Ctx()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], UserResolvers.prototype, "forgotPassword", null);
+__decorate([
     type_graphql_1.Query(() => User_1.User, { nullable: true }),
     __param(0, type_graphql_1.Ctx()),
     __metadata("design:type", Function),
@@ -202,12 +179,12 @@ __decorate([
     __param(0, type_graphql_1.Arg('options')),
     __param(1, type_graphql_1.Ctx()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [UserdataInput, Object]),
+    __metadata("design:paramtypes", [UserdataInput_1.UserdataInput, Object]),
     __metadata("design:returntype", Promise)
 ], UserResolvers.prototype, "register", null);
 __decorate([
     type_graphql_1.Mutation(() => UserResponse),
-    __param(0, type_graphql_1.Arg('username')),
+    __param(0, type_graphql_1.Arg('uniqueCred')),
     __param(1, type_graphql_1.Arg('password')),
     __param(2, type_graphql_1.Ctx()),
     __metadata("design:type", Function),

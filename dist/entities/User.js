@@ -54,7 +54,7 @@ __decorate([
 ], User.prototype, "phone", void 0);
 __decorate([
     type_graphql_1.Field(),
-    core_1.Property({ type: 'text', default: true }),
+    core_1.Property({ type: 'text', default: true, unique: true }),
     __metadata("design:type", String)
 ], User.prototype, "email", void 0);
 User = __decorate([

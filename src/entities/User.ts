@@ -34,6 +34,6 @@ export class User {
   phone!: string;
 
   @Field()
-  @Property({ type: 'text', default: true })
+  @Property({ type: 'text', default: true, unique: true })
   email!: string;
 }
